@@ -1,0 +1,122 @@
+{
+  "name": "@ctwebsiteco/site-core",
+  "version": "0.1.3",
+  "private": false,
+  "type": "module",
+  "description": "Invariant plumbing for CT Website Co per-client sites — auth, Supabase, Resend, analytics, Payload factory.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ctwebsiteco/ctwebsiteco-sites.git",
+    "directory": "packages/site-core"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js",
+      "require": "./dist/auth/index.cjs"
+    },
+    "./supabase": {
+      "types": "./dist/supabase/index.d.ts",
+      "import": "./dist/supabase/index.js",
+      "require": "./dist/supabase/index.cjs"
+    },
+    "./supabase/client": {
+      "types": "./dist/supabase/client.d.ts",
+      "import": "./dist/supabase/client.js",
+      "require": "./dist/supabase/client.cjs"
+    },
+    "./supabase/middleware": {
+      "types": "./dist/supabase/middleware.d.ts",
+      "import": "./dist/supabase/middleware.js",
+      "require": "./dist/supabase/middleware.cjs"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "import": "./dist/email/index.js",
+      "require": "./dist/email/index.cjs"
+    },
+    "./analytics": {
+      "types": "./dist/analytics/index.d.ts",
+      "import": "./dist/analytics/index.js",
+      "require": "./dist/analytics/index.cjs"
+    },
+    "./payload": {
+      "types": "./dist/payload/index.d.ts",
+      "import": "./dist/payload/index.js",
+      "require": "./dist/payload/index.cjs"
+    },
+    "./collections": {
+      "types": "./dist/collections/index.d.ts",
+      "import": "./dist/collections/index.js",
+      "require": "./dist/collections/index.cjs"
+    },
+    "./globals": {
+      "types": "./dist/globals/index.d.ts",
+      "import": "./dist/globals/index.js",
+      "require": "./dist/globals/index.cjs"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js",
+      "require": "./dist/types/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup && node scripts/add-use-client.mjs",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "jose": "^5.9.6",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.46.1",
+    "resend": "^4.0.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.5"
+  },
+  "peerDependencies": {
+    "next": ">=16.0.0",
+    "react": ">=19.0.0",
+    "react-dom": ">=19.0.0",
+    "payload": ">=3.0.0",
+    "@payloadcms/db-d1-sqlite": ">=3.0.0",
+    "@payloadcms/richtext-lexical": ">=3.0.0",
+    "@payloadcms/plugin-form-builder": ">=3.0.0",
+    "@payloadcms/email-resend": ">=3.0.0",
+    "@opennextjs/cloudflare": ">=1.0.0",
+    "@cloudflare/workers-types": ">=4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsup": "^8.3.0",
+    "rimraf": "^6.0.1",
+    "@types/node": "^22.9.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "payload": "^3.0.0",
+    "@payloadcms/db-d1-sqlite": "^3.0.0",
+    "@payloadcms/richtext-lexical": "^3.0.0",
+    "@payloadcms/plugin-form-builder": "^3.0.0",
+    "@payloadcms/email-resend": "^3.0.0",
+    "@opennextjs/cloudflare": "^1.0.0"
+  }
+}
