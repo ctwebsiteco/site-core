@@ -1,0 +1,61 @@
+name: Build dist
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tsup.config.ts'
+      - 'scripts/**'
+      - 'package.json'
+      - 'tsconfig.json'
+  workflow_dispatch:
+
+concurrency:
+  group: build-dist-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Skip when the commit itself is a dist rebuild, to avoid loops.
+    if: "!contains(github.event.head_commit.message, '[skip dist]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --no-frozen-lockfile --ignore-scripts
+        env:
+          # better-sqlite3 has a postinstall but we're peerDep-only here;
+          # build doesn't need the native binary.
+          CI: 'true'
+
+      - name: Build
+        run: pnpm build
+
+      - name: Commit dist if changed
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add dist
+          if git diff --cached --quiet; then
+            echo "::notice::dist already up to date — nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore: rebuild dist [skip dist]"
+          git push

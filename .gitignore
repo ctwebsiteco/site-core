@@ -1,3 +1,7 @@
 node_modules
-dist
 *.tsbuildinfo
+.turbo
+# dist/ is intentionally NOT gitignored — git-install consumers
+# (bun install github:ctwebsiteco/site-core) get prebuilt dist without
+# needing native devDeps. CI (.github/workflows/build-dist.yml)
+# rebuilds dist on every push to src/.

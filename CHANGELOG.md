@@ -11,23 +11,58 @@ consumers must coordinate a migration or a particular JWT hook version.
 
 ## [Unreleased]
 
-## [0.1.4] — 2026-04-17
+## [0.2.0] — 2026-04-17
 
-### Changed — git-installability
+### Breaking? No — runtime contract unchanged, but dev behavior is now much more useful.
 
-Added `"prepare"` script so consumers that `bun install` or
-`pnpm install` via `github:ctwebsiteco/site-core#<ref>` automatically
-build `dist/` after clone. Previously only `prepublishOnly` ran, which
-fires on `pnpm publish` — not on git-install. Without a prepare step,
-git-installed consumers got the source files only and every
-`@ctwebsiteco/site-core/<subpath>` import resolved to a nonexistent
-`dist/<subpath>/index.js`.
+### Added — real SQLite dev backend (replaces the failing-proxy fallback)
 
-Enables sandboxed AI agent dev loops that can't (or don't want to)
-authenticate against GitHub Packages: just `bun install` from git with
-a standard git credential and the package builds itself.
+`resolveD1Binding` now returns a fully-functional D1-shaped binding
+backed by `better-sqlite3` when the Cloudflare Worker context is
+unreachable. Previously it returned a Proxy that threw on every method
+call — the Next server booted but every `/admin` query errored.
 
-Fleet impact: none. Runtime contract unchanged from 0.1.3.
+- **New file**: `src/payload/localD1.ts` — `LocalD1Database` +
+  `LocalD1PreparedStatement` implement the subset of the D1 interface
+  that `@payloadcms/db-d1-sqlite` (via drizzle-orm/d1) uses: `prepare`,
+  `bind`, `first`, `run`, `all`, `raw`, `batch`, `exec`.
+- `.all()` and `.first()` auto-route DDL + non-RETURNING DML through
+  better-sqlite3's `.run()` (it rejects `.all()` on statements that
+  don't return rows; drizzle emits these for `CREATE TABLE`, `DROP
+  TABLE`, `INSERT` without `RETURNING`).
+- Default local path: `.payload/local.db` (gitignored in the template).
+  Override with `LOCAL_D1_PATH` env (e.g. `:memory:` for ephemeral
+  in-memory dev, or any absolute path).
+- Same `@payloadcms/db-d1-sqlite` adapter handles both prod (real D1)
+  and dev (LocalD1). Schema + migrations identical.
+
+### Added — `FORCE_LOCAL_D1` env
+
+Opt-in to the SQLite shim even when Cloudflare context IS available.
+Useful when Miniflare-D1 state is corrupted, or for fully-offline dev
+runs. Set `FORCE_LOCAL_D1=true` or `=1`.
+
+### Peer dependencies
+
+- `better-sqlite3 >=11.0.0` (marked optional via
+  `peerDependenciesMeta.better-sqlite3.optional = true` — consumers
+  that never hit the dev fallback path don't need it).
+
+### Verified end-to-end
+
+`next dev` with `FORCE_LOCAL_D1=true`, no Supabase env, no Cloudflare
+bindings:
+
+1. Start `next dev` — server ready in ~800ms
+2. `GET /admin` → 200, Payload dashboard renders
+3. `POST /api/pages {"title":"Hello SQLite","slug":"hello"}` → 201,
+   returns `{"doc":{"id":1,"title":"Hello SQLite",...}}`
+4. `GET /api/pages` → returns the created page
+
+All schema DDL, writes, and reads go through the shim. `.payload/local.db`
+created on disk with WAL + SHM journals.
+
+### Fleet impact: none. JWT claim shape + fleet schema unchanged.
 
 ## [0.1.3] — 2026-04-17
 
