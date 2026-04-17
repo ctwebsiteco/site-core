@@ -11,6 +11,24 @@ consumers must coordinate a migration or a particular JWT hook version.
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-04-17
+
+### Changed — git-installability
+
+Added `"prepare"` script so consumers that `bun install` or
+`pnpm install` via `github:ctwebsiteco/site-core#<ref>` automatically
+build `dist/` after clone. Previously only `prepublishOnly` ran, which
+fires on `pnpm publish` — not on git-install. Without a prepare step,
+git-installed consumers got the source files only and every
+`@ctwebsiteco/site-core/<subpath>` import resolved to a nonexistent
+`dist/<subpath>/index.js`.
+
+Enables sandboxed AI agent dev loops that can't (or don't want to)
+authenticate against GitHub Packages: just `bun install` from git with
+a standard git credential and the package builds itself.
+
+Fleet impact: none. Runtime contract unchanged from 0.1.3.
+
 ## [0.1.3] — 2026-04-17
 
 ### Fixed — sandboxed / no-workerd boot
