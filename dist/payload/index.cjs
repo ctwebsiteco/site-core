@@ -355,182 +355,15 @@ var contactGlobal = {
     }
   ]
 };
-
-// src/payload/localD1.ts
-function emptyMeta() {
-  return {
-    duration: 0,
-    size_after: 0,
-    rows_read: 0,
-    rows_written: 0,
-    last_row_id: 0,
-    changed_db: false,
-    changes: 0,
-    served_by: "local",
-    served_by_region: "",
-    served_by_primary_region: "",
-    timings: { sql_duration_ms: 0 }
-  };
-}
-var LocalD1PreparedStatement = class _LocalD1PreparedStatement {
-  constructor(db, sql, params = []) {
-    this.db = db;
-    this.sql = sql;
-    this.params = params;
-  }
-  db;
-  sql;
-  params;
-  bind(...values) {
-    const normalized = values.map(
-      (v) => typeof v === "bigint" ? v : v === void 0 ? null : v
-    );
-    return new _LocalD1PreparedStatement(this.db, this.sql, normalized);
-  }
-  async first(colName) {
-    const stmt = this.db.prepare(this.sql);
-    if (!stmt.reader) {
-      stmt.run(...this.params);
-      return null;
-    }
-    const row = stmt.get(...this.params);
-    if (!row) return null;
-    if (colName) return row[colName] ?? null;
-    return row;
-  }
-  async run() {
-    const stmt = this.db.prepare(this.sql);
-    const info = stmt.run(...this.params);
-    const meta = emptyMeta();
-    meta.changes = info.changes;
-    meta.rows_written = info.changes;
-    meta.last_row_id = typeof info.lastInsertRowid === "bigint" ? Number(info.lastInsertRowid) : info.lastInsertRowid;
-    meta.changed_db = info.changes > 0;
-    return { success: true, meta, results: [] };
-  }
-  async all() {
-    const stmt = this.db.prepare(this.sql);
-    if (!stmt.reader) {
-      const info = stmt.run(...this.params);
-      const meta2 = emptyMeta();
-      meta2.changes = info.changes;
-      meta2.rows_written = info.changes;
-      meta2.last_row_id = typeof info.lastInsertRowid === "bigint" ? Number(info.lastInsertRowid) : info.lastInsertRowid;
-      meta2.changed_db = info.changes > 0;
-      return { success: true, meta: meta2, results: [] };
-    }
-    const rows = stmt.all(...this.params);
-    const meta = emptyMeta();
-    meta.rows_read = rows.length;
-    return { success: true, meta, results: rows };
-  }
-  async raw(options) {
-    const stmt = this.db.prepare(this.sql);
-    if (!stmt.reader) {
-      stmt.run(...this.params);
-      return [];
-    }
-    const rawStmt = stmt.raw(true);
-    const rows = rawStmt.all(...this.params);
-    if (options?.columnNames) {
-      const cols = rawStmt.columns().map((c) => c.name);
-      return [cols, ...rows];
-    }
-    return rows;
-  }
-};
-var LocalD1Database = class {
-  constructor(db) {
-    this.db = db;
-  }
-  db;
-  prepare(sql) {
-    return new LocalD1PreparedStatement(this.db, sql);
-  }
-  async batch(statements) {
-    const runAll = this.db.transaction(() => {
-      const results = [];
-      for (const s of statements) {
-        const inner = s;
-        const stmt = this.db.prepare(inner.sql);
-        const params = inner.params;
-        const info = stmt.run(...params);
-        const meta = emptyMeta();
-        meta.changes = info.changes;
-        meta.rows_written = info.changes;
-        meta.last_row_id = typeof info.lastInsertRowid === "bigint" ? Number(info.lastInsertRowid) : info.lastInsertRowid;
-        results.push({ success: true, meta, results: [] });
-      }
-      return results;
-    });
-    return runAll();
-  }
-  async exec(query) {
-    const start = performance.now();
-    const statements = query.split(";").map((s) => s.trim()).filter((s) => s.length > 0);
-    for (const stmt of statements) {
-      this.db.exec(stmt + ";");
-    }
-    return {
-      count: statements.length,
-      duration: performance.now() - start
-    };
-  }
-  async dump() {
-    throw new Error(
-      "[site-core] LocalD1Database.dump() is not implemented \u2014 use wrangler against the real D1 for production dumps."
-    );
-  }
-  withSession() {
-    throw new Error(
-      "[site-core] LocalD1Database.withSession() is not implemented \u2014 no session replication in local dev."
-    );
-  }
-};
-async function createLocalD1(filePath) {
-  let Database;
-  try {
-    const mod = await import('better-sqlite3');
-    Database = mod.default ?? mod;
-  } catch (err) {
-    throw new Error(
-      `[site-core] Local SQLite fallback requires \`better-sqlite3\` as a dependency. Install it in the consumer: \`bun add -d better-sqlite3\` (or pnpm / npm). Original error: ${err.message}`
-    );
-  }
-  const { mkdirSync } = await import('fs');
-  const path2 = await import('path');
-  mkdirSync(path2.dirname(filePath), { recursive: true });
-  const db = new Database(filePath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  return new LocalD1Database(db);
-}
-
-// src/payload/resolveD1Binding.ts
 async function resolveD1Binding() {
-  if (process.env.FORCE_LOCAL_D1 === "true" || process.env.FORCE_LOCAL_D1 === "1") {
-    console.warn(
-      "[site-core] FORCE_LOCAL_D1 set \u2014 using local SQLite at LOCAL_D1_PATH or .payload/local.db."
-    );
-    return createLocalD1(process.env.LOCAL_D1_PATH ?? ".payload/local.db");
-  }
-  try {
-    const ctx = await cloudflare.getCloudflareContext({ async: true });
-    const env = ctx.env;
-    if (env.DB) {
-      return env.DB;
-    }
-    console.warn(
-      "[site-core] Cloudflare context resolved but env.DB is unbound \u2014 falling back to local SQLite."
-    );
-  } catch (err) {
-    console.warn(
-      "[site-core] getCloudflareContext() threw \u2014 falling back to local SQLite at LOCAL_D1_PATH or .payload/local.db.",
-      err.message
+  const ctx = await cloudflare.getCloudflareContext({ async: true });
+  const env = ctx.env;
+  if (!env.DB) {
+    throw new Error(
+      'D1 binding "DB" not bound on Cloudflare context \u2014 check wrangler.toml.'
     );
   }
-  const localPath = process.env.LOCAL_D1_PATH ?? ".payload/local.db";
-  return createLocalD1(localPath);
+  return env.DB;
 }
 
 // src/payload/createPayloadConfig.ts
@@ -554,7 +387,19 @@ async function createPayloadConfig(opts) {
     formFields = DEFAULT_FORM_FIELDS,
     typesOutputFile
   } = opts;
-  const binding = await resolveD1Binding();
+  if (process.env.NODE_ENV !== "production") {
+    return null;
+  }
+  let binding;
+  try {
+    binding = await resolveD1Binding();
+  } catch (err) {
+    console.warn(
+      "[site-core] No Cloudflare D1 binding available \u2014 Payload disabled. Frontend will render via createMockPayload(fixtures).",
+      err.message
+    );
+    return null;
+  }
   const email = process.env.RESEND_API_KEY && process.env.RESEND_FROM ? emailResend.resendAdapter({
     defaultFromAddress: process.env.RESEND_FROM,
     defaultFromName: process.env.RESEND_FROM_NAME || "",
@@ -617,17 +462,94 @@ async function createPayloadConfig(opts) {
   };
   return payload.buildConfig(config);
 }
-function createGetPayload(config) {
+
+// src/payload/mockPayload.ts
+function matches(doc, where) {
+  if (!where) return true;
+  for (const [field, condition] of Object.entries(where)) {
+    const value = doc[field];
+    if (condition.equals !== void 0 && value !== condition.equals) return false;
+    if (condition.in !== void 0 && !condition.in.includes(value)) return false;
+  }
+  return true;
+}
+function unsupported(method) {
+  throw new Error(
+    `[site-core] mockPayload.${method}() is not implemented in dev fixture mode. Run \`pnpm preview\` (wrangler) for real Payload + D1 if you need this method locally.`
+  );
+}
+function createMockPayload(fixtures) {
+  const collections = fixtures.collections ?? {};
+  const globals = fixtures.globals ?? {};
+  return {
+    async find({
+      collection,
+      where,
+      limit = 10,
+      page = 1,
+      depth: _depth = 0
+    }) {
+      const all = collections[collection] ?? [];
+      const matched = all.filter((d) => matches(d, where));
+      const start = (page - 1) * limit;
+      const docs = matched.slice(start, start + limit);
+      const totalDocs = matched.length;
+      const totalPages = Math.max(1, Math.ceil(totalDocs / limit));
+      return {
+        docs,
+        totalDocs,
+        limit,
+        page,
+        totalPages,
+        pagingCounter: start + 1,
+        hasPrevPage: page > 1,
+        hasNextPage: page < totalPages,
+        prevPage: page > 1 ? page - 1 : null,
+        nextPage: page < totalPages ? page + 1 : null
+      };
+    },
+    async findByID({ collection, id }) {
+      const all = collections[collection] ?? [];
+      return all.find((d) => d.id === id) ?? null;
+    },
+    async findGlobal({ slug, depth: _depth = 0 }) {
+      return globals[slug] ?? null;
+    },
+    // Surface methods that may be called but aren't implemented — clearly
+    // signal "not supported in dev fixture mode" instead of silently
+    // returning undefined.
+    create: () => unsupported("create"),
+    update: () => unsupported("update"),
+    delete: () => unsupported("delete"),
+    updateGlobal: () => unsupported("updateGlobal"),
+    sendEmail: async () => {
+      console.warn("[site-core] mockPayload.sendEmail noop in dev fixture mode");
+    }
+  };
+}
+
+// src/payload/createGetPayload.ts
+function createGetPayload(config, fixtures) {
   let cached;
   return async () => {
-    if (!cached) {
-      cached = await payload.getPayload({ config: await config });
+    if (cached) return cached;
+    const resolved = await config;
+    if (resolved === null) {
+      if (!fixtures) {
+        throw new Error(
+          "[site-core] createGetPayload called with null config and no fixtures. Either provide fixtures (dev) or run with a real Cloudflare context (prod / pnpm preview)."
+        );
+      }
+      cached = createMockPayload(fixtures);
+      return cached;
     }
+    cached = await payload.getPayload({ config: resolved });
     return cached;
   };
 }
 
 exports.createGetPayload = createGetPayload;
+exports.createMockPayload = createMockPayload;
 exports.createPayloadConfig = createPayloadConfig;
 exports.resolveD1Binding = resolveD1Binding;
 //# sourceMappingURL=index.cjs.map

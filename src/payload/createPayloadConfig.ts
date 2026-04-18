@@ -62,10 +62,22 @@ const DEFAULT_FORM_FIELDS = {
 // Assembles a full Payload `Config` from the invariant plumbing plus
 // consumer-specified overrides. Returns the result of `buildConfig()`,
 // which consumers can `export default` from their own payload.config.ts.
+//
+// Returns `null` in two cases:
+//   1. NODE_ENV !== 'production' (e.g. `next dev`). We deliberately skip
+//      Payload init in dev so the consumer can render from fixtures via
+//      createGetPayload(config, fixtures). Avoids the 10-second schema
+//      sync on every dev start, native-dep complexity, and Miniflare
+//      auto-init returning an empty D1 (which causes confusing 404s).
+//   2. NODE_ENV is 'production' but resolveD1Binding throws (sandbox
+//      without workerd). Same fixture-mock fallback applies.
+//
+// /admin won't render when this returns null — intentional. Use
+// `pnpm preview` for the full Payload + D1 stack locally.
 
 export async function createPayloadConfig(
   opts: CreatePayloadConfigOpts,
-): Promise<SanitizedConfig> {
+): Promise<SanitizedConfig | null> {
   const {
     rootDir,
     serverURL,
@@ -77,7 +89,23 @@ export async function createPayloadConfig(
     typesOutputFile,
   } = opts
 
-  const binding = await resolveD1Binding()
+  // Dev mode short-circuit: skip Payload init entirely when not in
+  // production. The frontend reads from fixtures via createGetPayload.
+  if (process.env.NODE_ENV !== 'production') {
+    return null
+  }
+
+  let binding
+  try {
+    binding = await resolveD1Binding()
+  } catch (err) {
+    console.warn(
+      '[site-core] No Cloudflare D1 binding available — Payload disabled. ' +
+      'Frontend will render via createMockPayload(fixtures).',
+      (err as Error).message,
+    )
+    return null
+  }
 
   const email =
     process.env.RESEND_API_KEY && process.env.RESEND_FROM

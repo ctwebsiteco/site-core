@@ -11,6 +11,72 @@ consumers must coordinate a migration or a particular JWT hook version.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-18
+
+### Removed (BREAKING) — SQLite shim, FORCE_LOCAL_D1, LOCAL_D1_PATH
+
+After research against Cloudflare's own Sept 2025 Payload-on-Workers
+guide and Payload's official SQLite adapter docs, the better-sqlite3
+"D1 mock" we shipped in 0.2.0 was a workaround. The right pattern for
+agent-driven dev (visual-layer customization, not CMS authoring) is
+to skip Payload init entirely in dev and render the frontend from
+fixture data — no DB at any layer.
+
+- **DELETED** `src/payload/localD1.ts` (~150 lines).
+- **DELETED** `FORCE_LOCAL_D1` and `LOCAL_D1_PATH` env handling.
+- **REMOVED** `better-sqlite3` peerDep + `peerDependenciesMeta`. No
+  more native build, no more trustedDependencies whitelisting in the
+  template.
+
+### Added — fixture-mock dev mode
+
+- **`src/payload/mockPayload.ts`**: `createMockPayload(fixtures)`
+  returns a Payload-shaped object that satisfies the methods the
+  template's frontend calls (`find`, `findGlobal`, `findByID`).
+  `where: { field: { equals } | { in } }` supported. Other methods
+  (`create`, `update`, `delete`, `updateGlobal`) throw a clear error
+  pointing at `pnpm preview`.
+- **`createGetPayload(config, fixtures?)`**: now accepts an optional
+  fixtures arg. If config resolves to `null` (no Cloudflare context)
+  and fixtures are provided → returns the mock. Otherwise → real
+  Payload singleton as before. Mode is opaque to consumers.
+- **`createPayloadConfig`**: returns `null` instead of throwing when
+  `resolveD1Binding` fails. The template's `getPayload()` catches
+  this transparently. /admin won't render in this state — that's
+  intentional, agents don't need /admin in the sandbox.
+
+### Why
+
+- **Boot time**: `next dev` ready in ~700ms (was ~15s with SQLite +
+  schema sync).
+- **Install time**: `bun install` ~30s (was ~115s with native
+  better-sqlite3 compile).
+- **Code surface**: -150 lines in site-core, -10 lines of trustedDeps
+  + native-build wiring in template. Nothing to maintain.
+- **Schema drift**: zero — frontend never touches a DB in dev, so
+  there's no schema to keep in sync between dev SQLite and prod D1.
+
+### Migration
+
+Consumer template's `getPayload.ts` must be updated:
+
+```diff
+- import config from '@payload-config'
+- import { createGetPayload } from '@ctwebsiteco/site-core/payload'
+- export const getPayload = createGetPayload(config)
++ import config from '@payload-config'
++ import { fixtures } from '@/seed/fixtures'
++ import { createGetPayload } from '@ctwebsiteco/site-core/payload'
++ export const getPayload = createGetPayload(config, fixtures)
+```
+
+The `fixtures` shape is `{ collections: { [slug]: doc[] }, globals: { [slug]: doc } }`.
+See template's `src/seed/fixtures.ts` for the canonical layout.
+
+### Fleet impact: none. JWT shape, fleet schema, prod runtime all unchanged.
+
+
+
 ## [0.2.0] — 2026-04-17
 
 ### Breaking? No — runtime contract unchanged, but dev behavior is now much more useful.

@@ -29,11 +29,57 @@ type CreatePayloadConfigOpts = {
      */
     typesOutputFile?: string;
 };
-declare function createPayloadConfig(opts: CreatePayloadConfigOpts): Promise<SanitizedConfig>;
+declare function createPayloadConfig(opts: CreatePayloadConfigOpts): Promise<SanitizedConfig | null>;
+
+type MockFixtures = {
+    /** Map of collection slug → array of docs. */
+    collections?: Record<string, Array<Record<string, any>>>;
+    /** Map of global slug → doc. */
+    globals?: Record<string, Record<string, any>>;
+};
+type WhereClause = Record<string, {
+    equals?: unknown;
+    in?: unknown[];
+}>;
+declare function createMockPayload(fixtures: MockFixtures): {
+    find({ collection, where, limit, page, depth: _depth, }: {
+        collection: string;
+        where?: WhereClause;
+        limit?: number;
+        page?: number;
+        depth?: number;
+    }): Promise<{
+        docs: Record<string, any>[];
+        totalDocs: number;
+        limit: number;
+        page: number;
+        totalPages: number;
+        pagingCounter: number;
+        hasPrevPage: boolean;
+        hasNextPage: boolean;
+        prevPage: number | null;
+        nextPage: number | null;
+    }>;
+    findByID({ collection, id }: {
+        collection: string;
+        id: string | number;
+    }): Promise<Record<string, any> | null>;
+    findGlobal({ slug, depth: _depth }: {
+        slug: string;
+        depth?: number;
+    }): Promise<Record<string, any>>;
+    create: () => never;
+    update: () => never;
+    delete: () => never;
+    updateGlobal: () => never;
+    sendEmail: () => Promise<void>;
+};
+type MockPayload = ReturnType<typeof createMockPayload>;
 
 type PayloadInstance = Awaited<ReturnType<typeof getPayload>>;
-declare function createGetPayload(config: SanitizedConfig | Promise<SanitizedConfig>): () => Promise<PayloadInstance>;
+type CreateGetPayloadResult = () => Promise<PayloadInstance | MockPayload>;
+declare function createGetPayload(config: SanitizedConfig | null | Promise<SanitizedConfig | null>, fixtures?: MockFixtures): CreateGetPayloadResult;
 
 declare function resolveD1Binding(): Promise<D1Database>;
 
-export { type CreatePayloadConfigOpts, createGetPayload, createPayloadConfig, resolveD1Binding };
+export { type CreatePayloadConfigOpts, type MockFixtures, type MockPayload, createGetPayload, createMockPayload, createPayloadConfig, resolveD1Binding };
